@@ -1,0 +1,12 @@
+{
+  "name": "web-rtc-learing",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "watch": "pm2 start src/index.js --watch"
+  },
+  "author": "",
+  "license": "ISC"
+}
