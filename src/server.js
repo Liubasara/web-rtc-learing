@@ -67,11 +67,22 @@ function handleCustom(handle, pathname, info) {
   }
 }
 
+// 该函数用于 HTML 文件，可讲文件中的第一个空脚本块替换为一个特定的对象
+// 该对象表示请求 URI 中包含的所有查询参数
+function addQuery(str, q) {
+  if (q) {
+    return str.replace(`<script><</script>`, `<script>var queryparams = ${JSON.stringify(q)}</script>`)
+  } else {
+    return str
+  }
+}
+
 /**
  * 打开指定文件、读取其中的内容并将这些内容发送至客户端
  */
 function serveFile(filepath, info) {
   const res = info.res
+  const query = info.query
   log('serving file ' + filepath)
   fs.open(filepath, 'r', function(err, fd) {
     if (err) {
@@ -90,7 +101,7 @@ function serveFile(filepath, info) {
       log('just read ' + readBytes + ' bytes')
       if (readBytes > 0) {
         res.writeHead(200, { 'Content-Type': contentType(filepath) })
-        res.write(readBuffer.toString('utf-8', 0, readBytes))
+        res.write(addQuery(readBuffer.toString('utf-8', 0, readBytes), query))
         res.end()
       }
     })
@@ -117,16 +128,24 @@ function route(handle, pathname, info) {
 }
 
 /**
- * 创建一个处理程序，以基于路径名称来路由请求
+ * 创建一个处理程序，收集通过 POST 传输的数据并基于路径名称请求路由
  */
 let info = null
 function start(handle, port) {
   function onRequest(req, res) {
     const urldata = url.parse(req.url, true)
     const pathname = urldata.pathname
-    info = { res }
+    info = { res, query: urldata.query, postData: '' }
     log('request for ' + pathname + ' received')
-    route(handle, pathname, info)
+    req.setEncoding('utf-8')
+    req.addListener('data', function (postDataChunk) {
+      info.postData += postDataChunk
+      log(`Received POST data chunk ${postDataChunk}`)
+    })
+    req.addListener('end', function() {
+      route(handle, pathname, info)
+    })
+    // route(handle, pathname, info)
   }
   http.createServer(onRequest).listen(port)
   log('Server started on port ' + port)
