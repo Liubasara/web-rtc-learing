@@ -49,10 +49,10 @@ function contentType(filepath) {
 /**
  * 如果没有为请求定义处理程序，返回 404
  */
-function noHandlerErr(pathname, res) {
+function noHandlerErr(pathname, res, msg = '') {
   log('No Request handler found for ' + pathname)
-  res.writeHead(404, { 'Content-Type': 'text/plain' })
-  res.write('404 Not Found')
+  res.writeHead(404, { 'Content-Type': 'text/plain;charset=utf-8' })
+  res.write('404 Not Found\n' + msg)
   res.end()
 }
 
@@ -60,11 +60,16 @@ function noHandlerErr(pathname, res) {
  * 确认非文件的处理程序，然后执行该程序
  */
 function handleCustom(handle, pathname, info) {
-  if (typeof handle[pathname] === 'function') {
-    handle[pathname](info)
-  } else {
-    noHandlerErr(pathname, info.res)
+  try {
+    if (typeof handle[pathname] === 'function') {
+      handle[pathname](info)
+    } else {
+      noHandlerErr(pathname, info.res)
+    }
+  } catch (e) {
+    noHandlerErr(pathname , info.res, `执行错误: ${e}`)
   }
+  
 }
 
 // 该函数用于 HTML 文件，可讲文件中的第一个空脚本块替换为一个特定的对象
