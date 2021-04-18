@@ -1,3 +1,4 @@
+// serverXHRSignalingChannel
 const log = require('./log').log
 
 const connections = {}
@@ -16,7 +17,7 @@ function connect(info) {
     return Math.floor(Math.random() * 1000000000)
   }
   const connectFirstParty = function () {
-    if (thisconnection.staus === 'connected') {
+    if (thisconnection.status === 'connected') {
       // 删除配对和任何存储的消息
       delete partner[thisconnection.ids[0]]
       delete partner[thisconnection.ids[1]]
@@ -25,9 +26,9 @@ function connect(info) {
     }
     connections[query.key] = {}
     thisconnection = connections[query.key]
-    thisconnection.staus = 'waiting'
+    thisconnection.status = 'waiting'
     thisconnection.ids = [newID()]
-    webrtcResponse({ id: thisconnection[0], status: thisconnection.status }, res)
+    webrtcResponse({ id: thisconnection.ids[0], status: thisconnection.status }, res)
   }
   const connectSecondParty = function () {
     thisconnection.ids[1] = newID()

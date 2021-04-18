@@ -1,3 +1,4 @@
+// server.js
 const http = require('http')
 const url = require('url')
 const fs = require('fs')
@@ -76,7 +77,7 @@ function handleCustom(handle, pathname, info) {
 // 该对象表示请求 URI 中包含的所有查询参数
 function addQuery(str, q) {
   if (q) {
-    return str.replace(`<script><</script>`, `<script>var queryparams = ${JSON.stringify(q)}</script>`)
+    return str.replace(`<script></script>`, `<script>var queryparams = ${JSON.stringify(q)}</script>`)
   } else {
     return str
   }

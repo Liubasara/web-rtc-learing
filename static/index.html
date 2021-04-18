@@ -19,23 +19,163 @@
   <body>
     <div id="setup">
       <p>WebRTC Book Demo(local media only)</p>
+      <p>
+        Key:
+        <input type="text" name="key" id="key" onkeyup="if (event.keyCode == 13) {connect(); return false;}" />
+        <button id="connect" onclick="connect()">Connect</button>
+        <span id="statusline" style="display: none;">Status:
+          <span id="status">Disconnected</span>
+        </span>
+      </p>
     </div>
+
+    <div id="scMessage" style="float: right;display: none;">
+      <p>Signaling channel meesage:
+        <input type="text" width="100%" name="message" id="message" onkeyup="if (event.keyCode == 13) {send(); return false;}">
+        <button id="send" style="display: none;" onclick="send()">Send</button>
+      </p>
+      <p>Response: <span id="response"></span></p>
+    </div>
+
     <br />
     <div style="width: 30%; vertical-align: top">
       <div>
         <video id="myVideo" autoplay="autoplay" controls muted="true"></video>
       </div>
+      <p>
+        <b>Outgoing Messages</b>
+        <br>
+        <textarea name="outmessages" id="outmessages" rows="100"></textarea>
+      </p>
     </div>
+
+    <div style="width: 30%;vertical-align: top;">
+      <div>
+        <video id="placeholder" autoplay="autoplay" controls></video>
+      </div>
+      <p>
+        <b>Incoming Messages</b>
+        <br>
+        <textarea id="inmessages" rows="100" style="width: 100%;"></textarea>
+      </p>
+    </div>
+
+    <script src="clientXHRSignalingChannel.js" type="text/javascript"></script>
+    <!-- 添加一个空的 script 代码块
+         server.js 会在返回 html 文件之前填充该代码块
+         并根据请求的 URL 定义一个名为 queryparams 的参数，用于连接 WebRTC  -->
+    <script></script>
     <script>
       /**
        * 主例程
        **/
+      let signalingChannel, key, id
+      let haveLocalMedia = false
+      let connected = false
+
       let myVideoStream, myVideo
+
+      /**
+       * 建立信令通道
+       **/
+      function connect() {
+        let errorCB, scHandlers, handleMsg
+        // 首先，获取用于连接的密钥
+        key = document.getElementById('key').value
+        // 处理通过信令通道收到的所有消息
+        handleMsg = function (msg) {
+          // 将消息发布到屏幕上
+          let msgE = document.getElementById('inmessages')
+          let msgString = JSON.stringify(msg)
+          msgE.value = msgString + '\n' + msgE.value
+        }
+        // 用于信令通道的处理程序
+        scHandlers = {
+          onWaiting: function () {
+            setStatus('Waiting')
+          },
+          onConnected: function () {
+            connected = true
+            setStatus('Connected')
+            // 等待本地媒体准备就绪
+            verifySetupDone()
+          },
+          onMessage: handleMsg
+        }
+        // 最后创建信令通道(createSignalingChannel 方法在 clientXHRSignalingChannel 中定义)
+        signalingChannel = createSignalingChannel(key, scHandlers)
+        errorCB = function (msg) {
+          document.getElementById('response').innerHTML = msg
+        }
+        // 进行连接
+        signalingChannel.connect(errorCB)
+      }
+
+      // 通过信令通道发送消息，其方式有两种：一是执行显式调用，二是通过用户点击 Send 按钮
+      function send(msg) {
+        const handler = function (res) {
+          document.getElementById('response').innerHTML = res
+          return
+        }
+        // 如果没有传入，则获取消息
+        msg = msg || document.getElementById('message').value
+        // 发布到屏幕上
+        const msgE = document.getElementById('outmessages')
+        const msgString = JSON.stringify(msg)
+        msgE.value = msgString + '\n' + msgE.value
+        // 通过信令通道发送
+        signalingChannel.send(msg, handler)
+      }
+
+      /**
+       * 用于对两项异步活动的完成时间进行同步：创建信令通道、获取本地媒体
+       * **/
+      function verifySetupDone() {
+        // 如果信令通道准备就绪，且已经获得了本地媒体，就继续处理
+        if (connected && haveLocalMedia) {
+          setStatus('Set up')
+        }
+      }
+
+      /**
+       * 用于基于应用程序的进度更改 UI
+       * 通过隐藏、显示和填充各种 UI 元素
+       * 并让用户大概了解浏览器建立信令通道和获取本地媒体的进度
+       * **/
+      function setStatus(str) {
+        const statuslineE = document.getElementById('statusline')
+        const statusE = document.getElementById('status')
+        const sendE = document.getElementById('send')
+        const connectE = document.getElementById('connect')
+        const scMessageE = document.getElementById('scMessage')
+
+        switch (str) {
+          case 'Waiting':
+            statuslineE.style.display = 'inline'
+            statusE.innerHTML = 'Waiting for peer signaling connection'
+            sendE.style.display = 'none'
+            break
+          case 'Connected':
+            statuslineE.style.display = 'inline'
+            statuslineE.innerHTML = 'Peer signaling connected, waiting for local media'
+            sendE.style.display = 'inline'
+            scMessageE.style.display = 'inline-block'
+            break
+          case 'Set up':
+            statusE && (statusE.innerHTML = 'Peer signaling connected and local media obtained')
+            break
+          default:
+            break
+        }
+      }
 
       function gotUserMedia(stream) {
         myVideoStream = stream
+        haveLocalMedia = true
         // 展示我的本地视频
         myVideo.srcObject = stream
+        // 等待建立信令通道
+        verifySetupDone()
         // attachMediaStream(myVideo, myVideoStream)
       }
 
@@ -54,9 +194,13 @@
           didntGetUserMedia
         )
       }
-
-      // 开始获取本地媒体
+      // 开始获取本地媒体，并自动启动信令通道
       window.onload = function () {
+        // 如果 URI 中提供了密钥，则自动连接信令通道
+        if (queryparams && queryparams['key']) {
+          document.getElementById('key').value = queryparams['key']
+          connect()
+        }
         myVideo = document.getElementById('myVideo')
         getMedia()
       }

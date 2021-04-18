@@ -1,3 +1,4 @@
+// clientXHRSignalingChannel
 /**
  * 创建客户端命令，用于建立基于 XML HTTP 请求的 WebRTC 信令通道
  *
@@ -83,6 +84,30 @@ const createSignalingChannel = function (key, handlers) {
       }
       return { reset, increase, value }
     })()
+
+    // 定义一个立即执行的函数 getLoop，从服务器检索消息，然后将自身计划为在 pollWaitDelay.value() 毫秒后重新运行
+    ;(function getLoop() {
+      get(function (response) {
+        let i
+        const msgs = (response && response.msgs) || []
+        // 如果存在消息属性，则表示已经建立连接
+        if (response.msgs && status !== 'connected') {
+          // 将状态切换为 connected，确认建立连接
+          status = 'connected'
+          connectedHandler()
+        }
+        if (msgs.length > 0) {
+          pollWaitDelay.reset()
+          for (i = 0; i < msgs.length; i++) {
+            handleMessage(msgs[i])
+          }
+        } else {
+          pollWaitDelay.increase()
+        }
+        // 设置计时器以便重新检查
+        setTimeout(getLoop, pollWaitDelay.value())
+      })
+    })()
   }
 
   function get(getResponseHandler) {
@@ -117,30 +142,6 @@ const createSignalingChannel = function (key, handlers) {
       messageHandler(msg)
     }, 0)
   }
-
-  // 定义一个立即执行的函数 getLoop，从服务器检索消息，然后将自身计划为在 pollWaitDelay.value() 毫秒后重新运行
-  ;(function getLoop() {
-    get(function (response) {
-      let i
-      const msgs = (response && response.msgs) || []
-      // 如果存在消息属性，则表示已经建立连接
-      if (response.msgs && status !== 'connected') {
-        // 将状态切换为 connected，确认建立连接
-        status = 'connected'
-        connectedHandler()
-      }
-      if (msgs.length > 0) {
-        pollWaitDelay.reset()
-        for (i = 0; i < msgs.length; i++) {
-          handleMessage(msgs[i])
-        }
-      } else {
-        pollWaitDelay.increase()
-      }
-      // 设置计时器以便重新检查
-      setTimeout(getLoop, pollWaitDelay.value())
-    })
-  })()
 
   // 通过信令通道向另一端浏览器发送消息
   function send(msg, responseHandler) {
