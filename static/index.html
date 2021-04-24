@@ -25,8 +25,8 @@
         <button id="connect" onclick="connect()">Connect</button>
         <span id="statusline"
           >Status:
-          <span id="status">Disconnected</span>
         </span>
+        <span id="status">Disconnected</span>
         <button id="call" onclick="call()">Call</button>
       </p>
     </div>
@@ -139,7 +139,7 @@
             connected = true
             setStatus('Connected')
             // 等待本地媒体准备就绪
-            verifySetupDone()
+            // verifySetupDone()
             // 由于成功连接，因此建立 RTC 对等连接
             createPC()
           },
@@ -190,14 +190,13 @@
           case 'Waiting':
             statuslineE.style.display = 'inline'
             statusE.innerHTML = 'Waiting for peer signaling connection'
-            sendE.style.display = 'none'
-            connectE.style.display = 'none'
+            // sendE.style.display = 'none'
+            // connectE.style.display = 'none'
             break
           case 'Connected':
-            statuslineE.style.display = 'inline'
-            statuslineE.innerHTML = 'Peer signaling connected, waiting for local media'
+            statusE.innerHTML = 'Peer signaling connected, waiting for local media'
             sendE.style.display = 'inline'
-            connectE.style.display = 'none'
+            // connectE.style.display = 'none'
             scMessageE.style.display = 'inline-block'
             break
           case 'Set up':
@@ -209,7 +208,7 @@
             break
           case 'On call':
             statusE.innerHTML = 'On call'
-            callE.style.display = 'none'
+            // callE.style.display = 'none'
             break
           default:
             break
@@ -226,7 +225,8 @@
         // 展示我的本地视频
         attachMediaStream(myVideo, myVideoStream)
         // 等待建立信令通道
-        verifySetupDone()
+        // verifySetupDone()
+
         // 等待 RTCPeerConnection 创建完毕
         attachMediaIfReady()
       }
