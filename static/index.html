@@ -23,15 +23,13 @@
         Key:
         <input type="text" name="key" id="key" onkeyup="if (event.keyCode == 13) {connect(); return false;}" />
         <button id="connect" onclick="connect()">Connect</button>
-        <span id="statusline"
-          >Status:
-        </span>
+        <span id="statusline">Status: </span>
         <span id="status">Disconnected</span>
         <button id="call" onclick="call()">Call</button>
       </p>
     </div>
 
-    <div id="scMessage" style="float: right;">
+    <div id="scMessage" style="float: right">
       <p>
         Signaling channel meesage:
         <input
@@ -55,6 +53,24 @@
         <b>Outgoing Messages</b>
         <br />
         <textarea name="outmessages" id="outmessages" rows="100"></textarea>
+      </p>
+    </div>
+
+    <div style="width: 30%; vertical-align: top">
+      <textarea id="chatbox" rows="10" style="width: 100%"></textarea>
+      <p style="width: 100%">
+        <b>Real-time:</b>
+        <textarea id="rtt" rows="2" style="width: 100%"></textarea>
+      </p>
+      <p style="width: 100%">
+        <b>Chat message:</b>
+        <input
+          type="text"
+          style="width: 100%"
+          name="chat"
+          id="chat"
+          onkeyup="sendRtt();if (event.keyCode === 13) {sendChat();return false;}"
+        />
       </p>
     </div>
 
@@ -92,7 +108,7 @@
       let yourVideoStream, yourVideo
 
       let doNothing = function () {}
-      let pc
+      let pc, data = {}
       let constraints = {
         mandatory: {
           OfferToReceiveAudio: true,
@@ -278,7 +294,8 @@
         pc = new RTCPeerConnection({ iceServers: config })
         pc.onicecandidate = onIceCandidate
         pc.onaddstream = onRemoteStreamAdded
-        pc.onremoveStream = onRemoteStreamRemoved
+        pc.onremovestream = onRemoteStreamRemoved
+        pc.ondatachannel = onDataChannelAdded
         // 等待本地媒体准备就绪
         attachMediaIfReady()
       }
@@ -303,9 +320,71 @@
 
       // 如果远程端移除该流，出于方便，不执行任何操作
       function onRemoteStreamRemoved(e) {}
+
+      // 如果浏览器检测到另一端添加了数据通道, 则保存该数据通道、设置处理程序并发送欢迎消息
+      function onDataChannelAdded(e) {
+        dc = e.channel
+        setupDataHandlers()
+        sendChat('hello')
+      }
+
+      // 设置数据通道消息处理程序
+      function setupDataHandlers() {
+        data.send = function (msg) {
+          msg = JSON.stringify(msg)
+          console.log(`sending ${msg} over data channel`)
+          dc.send(msg)
+        }
+        dc.onmessage = function (e) {
+          let msg = JSON.parse(e.data)
+          let cb = document.getElementById('chatbox')
+          let rtt = document.getElementById('rtt')
+
+          if (msg.rtt) {
+            // 如果是实时文本（基于 keypress）消息，则将其显示在实时窗口中
+            console.log(`received rtt of ${msg.rtt}`)
+            rtt.value = msg.rtt
+            msg = msg.rtt
+          } else if (msg.chat) {
+            // 如果是完整的消息
+            // 则将其显示在聊天窗口中
+            // 重置实时窗口，并强制聊天窗口滚动到最后一行
+            console.log(`received chat of ${msg.chat}`)
+            cb.value = `<- ${msg.chat} \n`
+            rtt.value = ''
+            cb.scrollTop = cb.scrollHeight
+            msg = msg.chat
+          } else {
+            console.log(`received ${msg} on data channel`)
+          }
+        }
+      }
       /**
        * 这些方法用于建立 RTC 对等连接 End
        * **/
+
+      // 发送实时文本。基本而言，对于每个 keyup 事件
+      // 我们都在实时消息允许范围内发送整个字符串
+      // 以便在每次发生 keyup 事件时都显示相应的消息
+      function sendRtt() {
+        let msg = document.getElementById('chat').value
+        data.send({ rtt: msg })
+      }
+
+      // 发送常规聊天消息
+      // 当发生 enter keyup 事件时，就会这样处理，该事件意味着远程用户已输入完一行内容
+      // 它还用于发送初始的 hello 消息
+      function sendChat(msg) {
+        let cb = document.getElementById('chatbox')
+        let c = document.getElementById('chat')
+        // 在本地显示消息、发送消息并强制聊天窗口滚动到最后一行
+        msg = msg || c.value
+        console.log(`sendChat(${msg})`)
+        cb.value += `-> msg\n`
+        data.send({ chat: msg })
+        c.value = ''
+        cb.scrollTop = cb.scrollHeight
+      }
 
       /**
        * 这些方法用于将本地媒体附加到对等连接 Start
@@ -337,10 +416,12 @@
 
       /**
        * 下面这些方法用于呼叫和应答 Start
-      */
+       */
 
-      // 为提议生成会话描述
+      // 创建数据通道并为提议生成会话描述
       function call() {
+        dc = pc.createDataChannel('chat')
+        setupDataHandlers()
         pc.createOffer(gotDescription, doNothing, constraints)
       }
 
@@ -357,8 +438,7 @@
       }
       /**
        * 下面这些方法用于呼叫和应答 End
-      */
-
+       */
 
       function didntGetUserMedia() {
         console.log("couldn't get video")
